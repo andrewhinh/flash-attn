@@ -5,6 +5,12 @@ Flash Attention in Cuda
 Setup:
 
 ```bash
+# install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# install dependencies
+uv sync
+
 # install cudnn so we can use FlashAttention and run fast (optional)
 # https://developer.nvidia.com/cudnn-downloads
 # for me, CUDA 12 (run `nvcc --version`) running on Linux x86_64 Ubuntu 22.04
@@ -18,6 +24,12 @@ git clone https://github.com/NVIDIA/cudnn-frontend.git
 
 # install MPI (optional, if you intend to use multiple GPUs)
 sudo apt install openmpi-bin openmpi-doc libopenmpi-dev
+```
+
+Run the Python example:
+
+```bash
+uv run forward.py
 ```
 
 Compile example with cuDNN:
