@@ -40,6 +40,9 @@ https://github.com/NVIDIA/cudnn-frontend/blob/main/docs/operations/Attention.md
 #include <cuda_bf16.h>
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
+#include <opencv2/opencv.hpp>
+#include <vector>
+#include <algorithm>
 
 #define ENABLE_BF16
 #include "common.h"
@@ -1257,6 +1260,41 @@ void forward(int kernel_num,
 }
 // ----------------------------------------------------------------------------
 
+
+// Save a tensor as an image with a colormap
+void save_tensor_as_image(const float* tensor, int B, int T, int C, const char* filename) {
+    // Assuming the tensor is (B, T, C), use the first batch (B=0) and first channel (C=0) for visualization
+    int width = T;  // Sequence length
+    int height = C; // Embedding dimension
+
+    // Create a single 2D image for the first batch and channel
+    std::vector<float> single_channel(width * height);
+    for (int i = 0; i < width * height; ++i) {
+        single_channel[i] = tensor[i];
+    }
+
+    // Normalize the tensor values to [0, 255] for visualization
+    auto [min_val, max_val] = std::minmax_element(single_channel.begin(), single_channel.end());
+    float min_value = *min_val;
+    float max_value = *max_val;
+
+    std::vector<uint8_t> normalized_data(width * height);
+    for (int i = 0; i < width * height; ++i) {
+        normalized_data[i] = static_cast<uint8_t>(255.0f * (single_channel[i] - min_value) / (max_value - min_value));
+    }
+
+    // Convert to OpenCV Mat
+    cv::Mat grayscale_img(height, width, CV_8UC1, normalized_data.data());
+
+    // Apply a colormap (similar to "bwr" in Python)
+    cv::Mat colored_img;
+    cv::applyColorMap(grayscale_img, colored_img, cv::COLORMAP_JET); // Use COLORMAP_JET as a substitute for "bwr"
+
+    // Save the image
+    cv::imwrite(filename, colored_img);
+}
+
+
 int main(int argc, char **argv) {
     setup_main();
 
@@ -1305,53 +1343,72 @@ int main(int argc, char **argv) {
     cudaCheck(cudaMalloc(&d_inp, B * T * 3 * C * sizeof(float)));
     cudaCheck(cudaMemcpy(d_inp, inp, B * T * 3 * C * sizeof(float), cudaMemcpyHostToDevice));
 
-    // read kernel_num from command line
-    int kernel_num = 1;
-    if (argc > 1) {
-        kernel_num = atoi(argv[1]);
-    }
+    int kernel_num = 10;
     printf("Using kernel %d\n", kernel_num);
-    int block_sizes[] = {32, 64, 128, 256, 512};
 
-    // Lower accuracy requirements for FP16 (1e-4f also too much for TF32 on kernels 3 & 4)
-    float accuracy_threshold = (kernel_num <= 4) ? 1e-3f : 1e-2f;
+    // Save input tensor as an image
+    printf("Saving input tensor as image...\n");
+    save_tensor_as_image(inp, B, T, C, "in_cu.png");
 
-    // first check the correctness of the kernel
-    forward_cpu(out, preatt, att, inp, B, T, C, NH);
-    for (int j = 0; j < sizeof(block_sizes) / sizeof(int); j++) {
-        int block_size = block_sizes[j];
-        printf("Checking block size %d.\n", block_size);
-        forward(kernel_num, d_out, d_stats, d_vaccum, d_qkvr, d_preatt, d_att, d_inp, B, T, C, NH, block_size);
-        // all kernels should produce the correct output out
-        // todo - make accuracy threshold dynamic and depend on FP16 vs FP32?
-        validate_result(d_out, out, "out", B * T * C, accuracy_threshold);
-        // but as for preatt and att, things get a bit more complicated:
-        if (kernel_num != 2 && kernel_num < 5) {
-            // kernel 2 (knowingly) fails att/preatt because it uses a different algorithm
-            // that estimates the softmax online and never materializes preatt/att
-            validate_result(d_att, att, "att", B * NH * T * T, accuracy_threshold);
-        }
-        if (kernel_num != 2 && kernel_num < 4) {
-            // kernel 4 (knowingly) fails preatt because it fuses the scale normalization
-            // into the softmax, so preatt is off by 1.0f / sqrt(HS)
-            // but att and out (checked below) should match.
-            validate_result(d_preatt, preatt, "preatt", B * NH * T * T, accuracy_threshold);
-        }
-    }
-    printf("All results match. Starting benchmarks.\n\n");
-    first_run_validation = false;
+    // Run the selected kernel
+    printf("Running kernel %d...\n", kernel_num);
+    int block_size = 256; // Default block size
+    forward(kernel_num, d_out, d_stats, d_vaccum, d_qkvr, d_preatt, d_att, d_inp, B, T, C, NH, block_size);
 
-    // benchmark speed of the kernel
-    for (int j = 0; j < sizeof(block_sizes) / sizeof(int); j++) {
-        int block_size = block_sizes[j];
-        int repeat_times = 100;
+    // Copy the output tensor back to the host
+    cudaCheck(cudaMemcpy(out, d_out, B * T * C * sizeof(float), cudaMemcpyDeviceToHost));
 
-        float elapsed_time = benchmark_kernel(repeat_times, forward,
-                                              kernel_num, d_out, d_stats, d_vaccum, d_qkvr, d_preatt, d_att,
-                                              d_inp, B, T, C, NH, block_size);
+    // Save output tensor as an image
+    printf("Saving output tensor as image...\n");
+    save_tensor_as_image(out, B, T, C, "out_cu.png");
 
-        printf("block_size %4d | time %f ms\n", block_size, elapsed_time);
-    }
+    // // read kernel_num from command line
+    // int kernel_num = 1;
+    // if (argc > 1) {
+    //     kernel_num = atoi(argv[1]);
+    // }
+    // printf("Using kernel %d\n", kernel_num);
+    // int block_sizes[] = {32, 64, 128, 256, 512};
+
+    // // Lower accuracy requirements for FP16 (1e-4f also too much for TF32 on kernels 3 & 4)
+    // float accuracy_threshold = (kernel_num <= 4) ? 1e-3f : 1e-2f;
+
+    // // first check the correctness of the kernel
+    // forward_cpu(out, preatt, att, inp, B, T, C, NH);
+    // for (int j = 0; j < sizeof(block_sizes) / sizeof(int); j++) {
+    //     int block_size = block_sizes[j];
+    //     printf("Checking block size %d.\n", block_size);
+    //     forward(kernel_num, d_out, d_stats, d_vaccum, d_qkvr, d_preatt, d_att, d_inp, B, T, C, NH, block_size);
+    //     // all kernels should produce the correct output out
+    //     // todo - make accuracy threshold dynamic and depend on FP16 vs FP32?
+    //     validate_result(d_out, out, "out", B * T * C, accuracy_threshold);
+    //     // but as for preatt and att, things get a bit more complicated:
+    //     if (kernel_num != 2 && kernel_num < 5) {
+    //         // kernel 2 (knowingly) fails att/preatt because it uses a different algorithm
+    //         // that estimates the softmax online and never materializes preatt/att
+    //         validate_result(d_att, att, "att", B * NH * T * T, accuracy_threshold);
+    //     }
+    //     if (kernel_num != 2 && kernel_num < 4) {
+    //         // kernel 4 (knowingly) fails preatt because it fuses the scale normalization
+    //         // into the softmax, so preatt is off by 1.0f / sqrt(HS)
+    //         // but att and out (checked below) should match.
+    //         validate_result(d_preatt, preatt, "preatt", B * NH * T * T, accuracy_threshold);
+    //     }
+    // }
+    // printf("All results match. Starting benchmarks.\n\n");
+    // first_run_validation = false;
+
+    // // benchmark speed of the kernel
+    // for (int j = 0; j < sizeof(block_sizes) / sizeof(int); j++) {
+    //     int block_size = block_sizes[j];
+    //     int repeat_times = 100;
+
+    //     float elapsed_time = benchmark_kernel(repeat_times, forward,
+    //                                           kernel_num, d_out, d_stats, d_vaccum, d_qkvr, d_preatt, d_att,
+    //                                           d_inp, B, T, C, NH, block_size);
+
+    //     printf("block_size %4d | time %f ms\n", block_size, elapsed_time);
+    // }
 
     // free memory
     free(out);

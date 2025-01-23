@@ -3,13 +3,25 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+BS: int = 8
+IN_SEQ_LEN: int = 1024
 N_EMBD: int = 768  # embedding dimension
 N_HEAD: int = 12  # number of heads
 
-BS: int = 1
-IN_SEQ_LEN: int = 1000
-SHOW_W: int = 800
-SHOW_H: int = 960
+N_CHANNEL = 3
+n = (BS * IN_SEQ_LEN * N_EMBD) // N_CHANNEL
+factors = []
+for i in range(1, int(n**0.5) + 1):
+    if n % i == 0:
+        factors.append(i)
+        if i != n // i:
+            factors.append(n // i)
+factors = sorted(factors)
+mid_index = len(factors) // 2
+SHOW_W, SHOW_H = (
+    factors[mid_index - 1],
+    factors[mid_index] if len(factors) % 2 == 0 else factors[mid_index],
+)
 IN_PNG: str = "in.png"
 OUT_PNG: str = "out.png"
 
@@ -56,8 +68,8 @@ class CausalSelfAttention(nn.Module):
 if __name__ == "__main__":
     layer = CausalSelfAttention()
     x = torch.randn((BS, IN_SEQ_LEN, N_EMBD))
-    x = x.view(BS, SHOW_W, SHOW_H)
-    plt.imsave(IN_PNG, x[0].detach().cpu().numpy(), cmap="gray")
-    y = layer(x.view(1, IN_SEQ_LEN, N_EMBD))
-    y = y.view(BS, SHOW_W, SHOW_H)
-    plt.imsave(OUT_PNG, y[0].detach().cpu().numpy(), cmap="gray")
+    x = x.view(N_CHANNEL, SHOW_W, SHOW_H)
+    plt.imsave(IN_PNG, x[0].detach().cpu().numpy(), cmap="bwr")
+    y = layer(x.view(BS, IN_SEQ_LEN, N_EMBD))
+    y = y.view(N_CHANNEL, SHOW_W, SHOW_H)
+    plt.imsave(OUT_PNG, y[0].detach().cpu().numpy(), cmap="bwr")

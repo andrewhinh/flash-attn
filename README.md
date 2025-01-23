@@ -11,6 +11,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # install dependencies
 uv sync
 
+# install opencv for saving images in C++
+sudo apt-get -y install libopencv-dev
+
 # install cudnn so we can use FlashAttention and run fast (optional)
 # https://developer.nvidia.com/cudnn-downloads
 # for me, CUDA 12 (run `nvcc --version`) running on Linux x86_64 Ubuntu 22.04
@@ -35,17 +38,17 @@ uv run forward.py
 Compile example with cuDNN:
 
 ```bash
-nvcc -I./cudnn-frontend/include -DENABLE_CUDNN -O3 -lcublas -lcublasLt --use_fast_math -lcudnn forward.cu -o forward
+nvcc -I./cudnn-frontend/include -DENABLE_CUDNN -O3 -lcublas -lcublasLt --use_fast_math -lcudnn forward.cu -o forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
 ```
 
 Compile example without cuDNN:
 
 ```bash
-nvcc -O3 --use_fast_math -lcublas -lcublasLt forward.cu -o forward
+nvcc -O3 --use_fast_math -lcublas -lcublasLt forward.cu -o forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
 ```
 
 Run:
 
 ```bash
-./forward 10
+./forward
 ```
