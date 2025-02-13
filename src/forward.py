@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
@@ -22,8 +24,9 @@ SHOW_W, SHOW_H = (
     factors[mid_index - 1],
     factors[mid_index] if len(factors) % 2 == 0 else factors[mid_index],
 )
-IN_PNG: str = "in.png"
-OUT_PNG: str = "out.png"
+PARENT_PATH = Path(__file__).parent.parent
+IN_PNG = PARENT_PATH / "artifacts" / "in.png"
+OUT_PNG = PARENT_PATH / "artifacts" / "out.png"
 
 
 class CausalSelfAttention(nn.Module):

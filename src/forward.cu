@@ -1348,7 +1348,7 @@ int main(int argc, char **argv) {
 
     // Save input tensor as an image
     printf("Saving input tensor as image...\n");
-    save_tensor_as_image(inp, B, T, C, "in_cu.png");
+    save_tensor_as_image(inp, B, T, C, "artifacts/in_cu.png");
 
     // Run the selected kernel
     printf("Running kernel %d...\n", kernel_num);
@@ -1360,7 +1360,7 @@ int main(int argc, char **argv) {
 
     // Save output tensor as an image
     printf("Saving output tensor as image...\n");
-    save_tensor_as_image(out, B, T, C, "out_cu.png");
+    save_tensor_as_image(out, B, T, C, "artifacts/out_cu.png");
 
     // // read kernel_num from command line
     // int kernel_num = 1;

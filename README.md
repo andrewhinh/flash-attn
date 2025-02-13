@@ -2,7 +2,7 @@
 
 Flash Attention in Cuda
 
-Setup:
+## setup
 
 ```bash
 # install uv
@@ -29,26 +29,28 @@ git clone https://github.com/NVIDIA/cudnn-frontend.git
 sudo apt install openmpi-bin openmpi-doc libopenmpi-dev
 ```
 
-Run the Python example:
+## usage
+
+Test in Python:
 
 ```bash
-uv run forward.py
+uv run src/forward.py
 ```
 
-Compile example with cuDNN:
+Compile the test with cuDNN:
 
 ```bash
-nvcc -I./cudnn-frontend/include -DENABLE_CUDNN -O3 -lcublas -lcublasLt --use_fast_math -lcudnn forward.cu -o forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
+nvcc -I./cudnn-frontend/include -DENABLE_CUDNN -O3 -lcublas -lcublasLt --use_fast_math -lcudnn src/forward.cu -o dist/forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
 ```
 
-Compile example without cuDNN:
+Compile the test without cuDNN:
 
 ```bash
-nvcc -O3 --use_fast_math -lcublas -lcublasLt forward.cu -o forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
+nvcc -O3 --use_fast_math -lcublas -lcublasLt src/forward.cu -o dist/forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
 ```
 
-Run:
+Test in C++:
 
 ```bash
-./forward
+./dist/forward
 ```
