@@ -37,20 +37,9 @@ Test in Python:
 uv run src/forward.py
 ```
 
-Compile the test with cuDNN:
+Compile and test in C++:
 
 ```bash
-nvcc -I./cudnn-frontend/include -DENABLE_CUDNN -O3 -lcublas -lcublasLt --use_fast_math -lcudnn src/forward.cu -o dist/forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
-```
-
-Compile the test without cuDNN:
-
-```bash
-nvcc -O3 --use_fast_math -lcublas -lcublasLt src/forward.cu -o dist/forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
-```
-
-Test in C++:
-
-```bash
+nvcc -O3 src/forward.cu -o dist/forward -I/usr/include/opencv4 -L/usr/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs
 ./dist/forward
 ```
