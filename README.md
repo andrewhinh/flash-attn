@@ -29,6 +29,6 @@ uv run src/forward.py
 Compile and test in C++:
 
 ```bash
-nvcc -O3 src/forward.cu -o dist/forward -L/usr/lib
+nvcc -O3 -use_fast_math src/forward.cu -o dist/forward -L/usr/lib
 ./dist/forward
 ```

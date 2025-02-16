@@ -25,7 +25,7 @@ float* make_random_float(size_t N) {
 }
 
 __global__
-void attention_forward_kernel2(
+void flash_attn_kernel(
     const float* Q,
     const float* K,
     const float* V,
@@ -186,7 +186,7 @@ __global__ void unpermute_kernel(const float* inp, float *out, int B, int N, int
     }
 }
 
-void attention_forward2(float* out,
+void flash_attn(float* out,
                        const float* inp,
                        int B, int T, int C, int NH,
                        const int block_size) {
@@ -246,7 +246,7 @@ void attention_forward2(float* out,
     permute_kernel<<<num_blocks, block_size>>>(q, k, v, inp, B, N, nh, d);
 
     // now actually call the flash attention kernel
-    attention_forward_kernel2<<<grid_dim, block_dim, sram_size>>>(
+    flash_attn_kernel<<<grid_dim, block_dim, sram_size>>>(
         q, k, v,
         N, d, Tc, Tr, Bc, Br, softmax_scale,
         l, m, out
@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
 
     // call the kernel
     int block_size = 512;
-    attention_forward2(d_out, d_inp, B, T, C, NH, block_size);
+    flash_attn(d_out, d_inp, B, T, C, NH, block_size);
 
     // free memory
     free(out);
