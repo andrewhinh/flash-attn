@@ -109,25 +109,32 @@ if __name__ == "__main__":
     plt.imsave(ARTIFACTS_PATH / "in.png", x_save)
 
     # test python
+    print("=== profiling PyTorch ===")
     start = time.perf_counter()
     layer = CausalSelfAttention().to("cuda")
-    with torch.no_grad():
-        y = layer(x)
-    y_save = y.clone().view(SHOW_W, SHOW_H, N_CHANNEL)
+    with torch.no_grad(), torch.autograd.profiler.profile(use_device="cuda") as prof:
+        y_torch = layer(x)
+    y_save = y_torch.clone().view(SHOW_W, SHOW_H, N_CHANNEL)
     y_save = (y_save - y_save.min()) / (y_save.max() - y_save.min())
     y_save = y_save.detach().cpu().numpy()
     print(f"Saving image of size: {SHOW_W} x {SHOW_H}")
-    print(f"Python forward took {time.perf_counter() - start:.2f} seconds")
     plt.imsave(ARTIFACTS_PATH / "out.png", y_save)
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
     # test cu
+    print("=== profiling custom CUDA ===")
     start = time.perf_counter()
     layer = CausalSelfAttention(custom=True).to("cuda")
-    with torch.no_grad():
-        y = layer(x)
-    y_save = y.clone().view(SHOW_W, SHOW_H, N_CHANNEL)
+    with torch.no_grad(), torch.autograd.profiler.profile(use_device="cuda") as prof:
+        y_cu = layer(x)
+    y_save = y_cu.clone().view(SHOW_W, SHOW_H, N_CHANNEL)
     y_save = (y_save - y_save.min()) / (y_save.max() - y_save.min())
     y_save = y_save.detach().cpu().numpy()
     print(f"Saving image of size: {SHOW_W} x {SHOW_H}")
-    print(f"cu forward took {time.perf_counter() - start:.2f} seconds")
     plt.imsave(ARTIFACTS_PATH / "out_cu.png", y_save)
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+
+    print(
+        "attn values sanity check:",
+        torch.allclose(y_torch, y_cu, rtol=0, atol=1e-02),
+    )
