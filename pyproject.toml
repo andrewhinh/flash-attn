@@ -1,0 +1,10 @@
+[project]
+name = "flash-attn"
+version = "0.1.0"
+description = "Flash Attention in Cuda"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.10.0",
+    "torch>=2.5.1",
+]

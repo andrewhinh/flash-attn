@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+
+# cudnn-frontend
+cudnn-frontend/
