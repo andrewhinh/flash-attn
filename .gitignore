@@ -33,3 +33,5 @@
 
 # cudnn-frontend
 cudnn-frontend/
+
+**/__pycache__/
