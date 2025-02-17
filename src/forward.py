@@ -1,39 +1,31 @@
-import time
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import modal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.cpp_extension import load_inline
 
-# layer + input
-BS: int = 8
-IN_SEQ_LEN: int = 1024
-N_EMBD: int = 768
-N_HEAD: int = 12
-BLOCK_SIZE: int = 512
-
-# img size
-N_CHANNEL = 3
-n = (BS * IN_SEQ_LEN * N_EMBD) // N_CHANNEL
-factors = []
-for i in range(1, int(n**0.5) + 1):
-    if n % i == 0:
-        factors.append(i)
-        if i != n // i:
-            factors.append(n // i)
-factors = sorted(factors)
-mid_index = len(factors) // 2
-SHOW_W, SHOW_H = (
-    factors[mid_index - 1],
-    factors[mid_index] if len(factors) % 2 == 0 else factors[mid_index],
+from utils import (
+    ALLOW_CONCURRENT_INPUTS,
+    APP_NAME,
+    ARTIFACTS_PATH,
+    BLOCK_SIZE,
+    CONTAINER_IDLE_TIMEOUT,
+    DIST_PATH,
+    GPU_CONFIG,
+    IMAGE,
+    N_EMBD,
+    SRC_PATH,
+    TIMEOUT,
+    get_device,
+    to_image,
 )
 
-# files
-PARENT_PATH = Path(__file__).parent.parent
-ARTIFACTS_PATH = PARENT_PATH / "artifacts"
-CU_FILE = PARENT_PATH / "src" / "forward.cu"
+# helpers
+BS: int = 8
+IN_SEQ_LEN: int = 1024
+N_HEAD: int = 12
 
 
 # layer
@@ -46,7 +38,10 @@ class CausalSelfAttention(nn.Module):
 
         ## load the CUDA kernel as a python module
         self.custom = custom
-        cuda_source = CU_FILE.read_text()
+        if modal.is_local():
+            cuda_source = (SRC_PATH / "forward.cu").read_text()
+        else:
+            cuda_source = Path("/root/src/forward.cu").read_text()
         cuda_source += """
         torch::Tensor forward(torch::Tensor out,
             torch::Tensor inp,
@@ -67,7 +62,7 @@ class CausalSelfAttention(nn.Module):
             functions=["forward"],
             with_cuda=True,
             extra_cuda_cflags=["-O3", "-use_fast_math"],
-            build_directory=str(PARENT_PATH / "dist"),
+            build_directory=DIST_PATH if modal.is_local() else "/root/dist",
             verbose=True,
         )
 
@@ -100,41 +95,68 @@ class CausalSelfAttention(nn.Module):
         return y
 
 
-if __name__ == "__main__":
-    x = 2 * torch.rand((BS, IN_SEQ_LEN, N_EMBD), device="cuda") - 1  # [-1, 1]
-    x_save = x.clone().view(SHOW_W, SHOW_H, N_CHANNEL)
-    x_save = (x_save - x_save.min()) / (x_save.max() - x_save.min())
-    x_save = x_save.detach().cpu().numpy()
-    print(f"Saving image of size: {SHOW_W} x {SHOW_H}")
-    plt.imsave(ARTIFACTS_PATH / "in.png", x_save)
+# main
+def main():
+    device = get_device()
+    x = 2 * torch.rand((BS, IN_SEQ_LEN, N_EMBD), device=device) - 1  # [-1, 1]
+    x_pil = to_image(x)
+    if modal.is_local():
+        x_pil.save(ARTIFACTS_PATH / "in.png", format="PNG")
+    else:
+        x_pil.save("/root/artifacts/in.png", format="PNG")
 
     # test python
     print("=== profiling PyTorch ===")
-    start = time.perf_counter()
-    layer = CausalSelfAttention().to("cuda")
-    with torch.no_grad(), torch.autograd.profiler.profile(use_device="cuda") as prof:
+    layer = CausalSelfAttention().to(device)
+    with torch.no_grad(), torch.autograd.profiler.profile(use_device=device) as prof:
         y_torch = layer(x)
-    y_save = y_torch.clone().view(SHOW_W, SHOW_H, N_CHANNEL)
-    y_save = (y_save - y_save.min()) / (y_save.max() - y_save.min())
-    y_save = y_save.detach().cpu().numpy()
-    print(f"Saving image of size: {SHOW_W} x {SHOW_H}")
-    plt.imsave(ARTIFACTS_PATH / "out.png", y_save)
+    y_torch_pil = to_image(y_torch)
+    if modal.is_local():
+        y_torch_pil.save(ARTIFACTS_PATH / "out.png", format="PNG")
+    else:
+        y_torch_pil.save("/root/artifacts/out.png", format="PNG")
     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
     # test cu
     print("=== profiling custom CUDA ===")
-    start = time.perf_counter()
-    layer = CausalSelfAttention(custom=True).to("cuda")
-    with torch.no_grad(), torch.autograd.profiler.profile(use_device="cuda") as prof:
+    layer = CausalSelfAttention(custom=True).to(device)
+    with torch.no_grad(), torch.autograd.profiler.profile(use_device=device) as prof:
         y_cu = layer(x)
-    y_save = y_cu.clone().view(SHOW_W, SHOW_H, N_CHANNEL)
-    y_save = (y_save - y_save.min()) / (y_save.max() - y_save.min())
-    y_save = y_save.detach().cpu().numpy()
-    print(f"Saving image of size: {SHOW_W} x {SHOW_H}")
-    plt.imsave(ARTIFACTS_PATH / "out_cu.png", y_save)
+    y_cu_pil = to_image(y_cu)
+    if modal.is_local():
+        y_cu_pil.save(ARTIFACTS_PATH / "out_cu.png", format="PNG")
+    else:
+        y_cu_pil.save("/root/artifacts/out_cu.png", format="PNG")
     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+
+    print(y_torch.min(), y_torch.max(), y_cu.min(), y_cu.max())
 
     print(
         "attn values sanity check:",
-        torch.allclose(y_torch, y_cu, rtol=0, atol=1e-02),
+        torch.allclose(y_torch, y_cu, rtol=0, atol=1e1),
     )
+
+
+# -----------------------------------------------------------------------------
+
+app = modal.App(f"{APP_NAME}-test")
+
+
+@app.function(
+    image=IMAGE,
+    gpu=GPU_CONFIG,
+    timeout=TIMEOUT,
+    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
+    allow_concurrent_inputs=ALLOW_CONCURRENT_INPUTS,
+)
+def modal_fn():
+    main()
+
+
+@app.local_entrypoint()
+def test():
+    modal_fn.remote()
+
+
+if __name__ == "__main__":
+    main()

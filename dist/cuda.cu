@@ -194,8 +194,6 @@ void flash_attn(float* out,
                        int B, int T, int C, int NH,
                        const int block_size) {
     // TODO there should be no mallocs inside any of these functions!
-    // not fixing this because we don't intend to use attention_forward2,
-    // it seems to be way too slow as is
 
     // these are hardcoded to 32 for now
     const int Bc = 32;

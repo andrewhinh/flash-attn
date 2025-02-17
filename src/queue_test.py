@@ -1,8 +1,7 @@
-from pathlib import Path
-
 from torch.utils.cpp_extension import load_inline
 
-PARENT_PATH = Path(__file__).parent.parent
+from utils import PARENT_PATH
+
 QUEUE_FILE = PARENT_PATH / "src" / "queue.cpp"
 
 # C++ source code as a raw string.
