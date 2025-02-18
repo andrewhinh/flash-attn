@@ -98,6 +98,8 @@ class CausalSelfAttention(nn.Module):
 # main
 def main():
     device = get_device()
+    torch.manual_seed(0)
+
     x = 2 * torch.rand((BS, IN_SEQ_LEN, N_EMBD), device=device) - 1  # [-1, 1]
     x_pil = to_image(x)
     if modal.is_local():
