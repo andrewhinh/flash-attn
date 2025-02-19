@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import modal
 import numpy as np
@@ -15,7 +15,8 @@ DIST_PATH = PARENT_PATH / "dist"
 # layer
 N_EMBD: int = 768
 BLOCK_SIZE: int = 512
-VOCAB_SIZE: int = 50257
+VOCAB_SIZE: int = 50257  # always 50257 for GPT model checkpoints
+MODEL_HF: str = "openai-community/gpt2"
 
 
 def get_device():
@@ -154,7 +155,23 @@ def interactive_plot(x, y, tokens, filename=None):
     return fig.to_json()
 
 
+def download_model():
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(
+        MODEL_HF,
+        ignore_patterns=["*.pt", "*.bin"],
+    )
+
+
 # Modal
+PRETRAINED_VOLUME = f"{APP_NAME}-pretrained"
+VOLUME_CONFIG: dict[str | PurePosixPath, modal.Volume] = {
+    f"/{PRETRAINED_VOLUME}": modal.Volume.from_name(
+        PRETRAINED_VOLUME, create_if_missing=True
+    ),
+}
+
 IMAGE = (
     modal.Image.from_registry(
         "nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04", add_python="3.12"
@@ -162,6 +179,7 @@ IMAGE = (
     .apt_install("git")
     .pip_install(  # add Python dependencies
         "beautifulsoup4>=4.13.3",
+        "hf-transfer>=0.1.9",
         "ninja>=1.11.1.3",
         "plotly>=6.0.0",
         "python-fasthtml>=0.12.1",
@@ -169,12 +187,25 @@ IMAGE = (
         "simpleicons>=7.21.0",
         "tiktoken>=0.9.0",
         "torch>=2.5.1",
-        "requests==2.32.3",
+        "transformers>=4.49.0",
+    )
+    .env(
+        {
+            "TOKENIZERS_PARALLELISM": "false",
+            "HUGGINGFACE_HUB_CACHE": f"/{PRETRAINED_VOLUME}",
+            "HF_HUB_ENABLE_HF_TRANSFER": "1",
+        }
+    )
+    .run_function(
+        download_model,
+        volumes=VOLUME_CONFIG,
     )
     .add_local_file(PARENT_PATH / "favicon.ico", "/root/favicon.ico")
+    .add_local_dir(ARTIFACTS_PATH, "/artifacts")
     .add_local_dir(SRC_PATH, "/src")
     .add_local_dir(DIST_PATH, "/dist")
 )
+
 
 MINUTES = 60  # seconds
 TIMEOUT = 5 * MINUTES

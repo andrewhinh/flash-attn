@@ -23,6 +23,7 @@ from utils import (
     PARENT_PATH,
     TIMEOUT,
     VOCAB_SIZE,
+    VOLUME_CONFIG,
     get_device,
     interactive_plot,
 )
@@ -341,6 +342,7 @@ app = modal.App(f"{APP_NAME}-frontend")
 @app.function(
     image=IMAGE,
     gpu=GPU_CONFIG,
+    volumes=VOLUME_CONFIG,
     timeout=TIMEOUT,
     container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
     allow_concurrent_inputs=ALLOW_CONCURRENT_INPUTS,

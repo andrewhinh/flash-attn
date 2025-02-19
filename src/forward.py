@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.cpp_extension import load_inline
+from transformers import GPT2LMHeadModel
 
 from utils import (
     ALLOW_CONCURRENT_INPUTS,
@@ -13,16 +14,18 @@ from utils import (
     DIST_PATH,
     GPU_CONFIG,
     IMAGE,
+    MODEL_HF,
     N_EMBD,
     SRC_PATH,
     TIMEOUT,
+    VOLUME_CONFIG,
     get_device,
     interactive_plot,
 )
 
 # helpers
 BS: int = 8
-IN_SEQ_LEN: int = 1024
+IN_SEQ_LEN: int = 1024  # always 1024 for GPT model checkpoints
 N_HEAD: int = 12
 
 
@@ -33,6 +36,21 @@ class CausalSelfAttention(nn.Module):
         assert N_EMBD % N_HEAD == 0
         self.c_attn = nn.Linear(N_EMBD, N_EMBD * 3)
         self.c_proj = nn.Linear(N_EMBD, N_EMBD)
+
+        ## load pretrained weights for linear layers
+        ## basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla Linear
+        ## this means that we have to transpose these weights when we import them
+        model_hf = GPT2LMHeadModel.from_pretrained(MODEL_HF)
+        sd_hf = model_hf.state_dict()
+
+        def load_weights(layer, key_suffix):
+            key = next(k for k in sd_hf.keys() if k.endswith(key_suffix))
+            assert sd_hf[key].shape[::-1] == layer.weight.shape
+            with torch.no_grad():
+                layer.weight.copy_(sd_hf[key].t())
+
+        load_weights(self.c_attn, "attn.c_attn.weight")
+        load_weights(self.c_proj, "attn.c_proj.weight")
 
         ## load the CUDA kernel as a python module
         self.custom = custom
@@ -138,6 +156,7 @@ app = modal.App(f"{APP_NAME}-test")
 @app.function(
     image=IMAGE,
     gpu=GPU_CONFIG,
+    volumes=VOLUME_CONFIG,
     timeout=TIMEOUT,
     container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
     allow_concurrent_inputs=ALLOW_CONCURRENT_INPUTS,

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.13.3",
+    "hf-transfer>=0.1.9",
     "modal>=0.73.52",
     "ninja>=1.11.1.3",
     "plotly>=6.0.0",
@@ -14,4 +15,5 @@ dependencies = [
     "simpleicons>=7.21.0",
     "tiktoken>=0.9.0",
     "torch>=2.5.1",
+    "transformers>=4.49.0",
 ]
