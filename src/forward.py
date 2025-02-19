@@ -19,7 +19,7 @@ from utils import (
     SRC_PATH,
     TIMEOUT,
     get_device,
-    to_image,
+    interactive_plot,
 )
 
 # helpers
@@ -101,38 +101,32 @@ def main():
     torch.manual_seed(0)
 
     x = 2 * torch.rand((BS, IN_SEQ_LEN, N_EMBD), device=device) - 1  # [-1, 1]
-    x_pil = to_image(x)
-    if modal.is_local():
-        x_pil.save(ARTIFACTS_PATH / "in.png", format="PNG")
-    else:
-        x_pil.save("/root/artifacts/in.png", format="PNG")
+    save_path = ARTIFACTS_PATH if modal.is_local() else Path("/root/artifacts")
 
     # test python
     print("=== profiling PyTorch ===")
     layer = CausalSelfAttention().to(device)
     with torch.no_grad(), torch.autograd.profiler.profile(use_device=device) as prof:
         y_torch = layer(x)
-    y_torch_pil = to_image(y_torch)
-    if modal.is_local():
-        y_torch_pil.save(ARTIFACTS_PATH / "out.png", format="PNG")
-    else:
-        y_torch_pil.save("/root/artifacts/out.png", format="PNG")
     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+
+    # For a single query, extract the sequence (shape: (T, N_EMBD))
+    x_query = x[0]
+    y_torch_query = y_torch[0]
+    tokens = ["example"] * IN_SEQ_LEN
+    interactive_plot(x_query, y_torch_query, tokens, save_path / "torch.html")
 
     # test cu
     print("=== profiling custom CUDA ===")
     layer = CausalSelfAttention(custom=True).to(device)
     with torch.no_grad(), torch.autograd.profiler.profile(use_device=device) as prof:
         y_cu = layer(x)
-    y_cu_pil = to_image(y_cu)
-    if modal.is_local():
-        y_cu_pil.save(ARTIFACTS_PATH / "out_cu.png", format="PNG")
-    else:
-        y_cu_pil.save("/root/artifacts/out_cu.png", format="PNG")
     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
-    print(y_torch.min(), y_torch.max(), y_cu.min(), y_cu.max())
+    y_cu_query = y_cu[0]
+    interactive_plot(x_query, y_cu_query, tokens, save_path / "cu.html")
 
+    # compare torch and custom CUDA
     print(
         "attn values sanity check:",
         torch.allclose(y_torch, y_cu, rtol=0, atol=1e1),

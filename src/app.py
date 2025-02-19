@@ -1,4 +1,3 @@
-import base64
 import os
 from pathlib import Path
 
@@ -25,8 +24,7 @@ from utils import (
     TIMEOUT,
     VOCAB_SIZE,
     get_device,
-    to_bytes,
-    to_image,
+    interactive_plot,
 )
 
 # -----------------------------------------------------------------------------
@@ -57,16 +55,18 @@ def get_app():  # noqa: C901
         ws_hdr=True,
         exception_handlers={404: _not_found},
         hdrs=[
-            fh.Script(src="https://cdn.tailwindcss.com"),
             fh.HighlightJS(langs=["python", "javascript", "html", "css"]),
             fh.Link(rel="icon", href="/favicon.ico", type="image/x-icon"),
+            fh.Script(src="https://cdn.tailwindcss.com"),
             fh.Script(src="https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"),
+            fh.Script(src="https://cdn.plot.ly/plotly-2.32.0.min.js"),
         ],
         live=os.getenv("LIVE", False),
         debug=os.getenv("DEBUG", False),
         boost=True,
     )
     fh.setup_toasts(f_app)
+    artifacts_path = ARTIFACTS_PATH if modal.is_local() else Path("/root/artifacts")
 
     # components
     global generations
@@ -75,14 +75,13 @@ def get_app():  # noqa: C901
     class Gen(BaseModel):
         id: int
         query: str
-        in_img: str | None = None
-        out_img: str | None = None
+        data: str | None = None
 
     def gen_view(
         g: Gen,
         session,
     ):
-        if g.in_img and g.out_img:
+        if g.data:
             return fh.Card(
                 fh.P(
                     fh.A(
@@ -91,29 +90,15 @@ def get_app():  # noqa: C901
                         target="_blank",
                         cls="text-blue-300 hover:text-blue-100",
                     ),
-                    cls="text-lg flex justify-center items-center",
+                    cls="w-2/3 text-lg flex justify-center items-center",
                 ),
                 fh.Div(
-                    fh.Div(
-                        fh.Img(
-                            src=f"data:image/png;base64,{g.in_img}",
-                            alt="Input embeddings",
-                            cls="max-h-24 max-w-24 md:max-h-60 md:max-w-60 object-contain",
-                        ),
-                        cls="w-1/3",
-                    ),
-                    fh.Div(
-                        fh.Img(
-                            src=f"data:image/png;base64,{g.out_img}",
-                            alt="Output embeddings",
-                            cls="max-h-24 max-w-24 md:max-h-60 md:max-w-60 object-contain",
-                        ),
-                        cls="w-1/3",
-                    ),
-                    cls="w-full flex justify-between items-center",
+                    id=f"gen-{g.id}-plot",
                 ),
                 id=f"gen-{g.id}",
                 cls="w-full flex flex-col justify-center items-center gap-4 p-4",
+            ), fh.Script(
+                f"var data = {g.data}; Plotly.newPlot('gen-{g.id}-plot', data);",
             )
         return fh.Card(
             fh.P(
@@ -228,7 +213,7 @@ def get_app():  # noqa: C901
                 ),
                 cls="flex flex-col text-right gap-0.5",
             ),
-            cls="flex justify-end items-center p-4 text-sm md:text-lg",
+            cls="flex justify-end items-center p-4 text-lg",
         )
 
     # threaded fns
@@ -248,8 +233,7 @@ def get_app():  # noqa: C901
         # tokenize with tiktoken
         enc = tiktoken.get_encoding("gpt2")
         tokens = enc.encode(txt)
-        tokens = torch.tensor([tokens], dtype=torch.long)  # (B, T)
-        xgen = tokens.to(device)
+        xgen = torch.tensor([tokens], dtype=torch.long).to(device)  # shape (B, T)
         xgen = xgen[:, :BLOCK_SIZE]
         B, T = xgen.size()
 
@@ -268,9 +252,12 @@ def get_app():  # noqa: C901
                 nn.LayerNorm(N_EMBD).to(device)(x)
             )
 
-        # save as base64 image
-        g.in_img = base64.b64encode(to_bytes(to_image(x))).decode("utf-8")
-        g.out_img = base64.b64encode(to_bytes(to_image(y))).decode("utf-8")
+        g.data = interactive_plot(
+            x[0],  # shape (T, N_EMBD)
+            y[0],  # shape (T, N_EMBD)
+            [enc.decode([token]) for token in tokens],
+        )
+
         global generations
         generations[g.id] = g
 
@@ -278,8 +265,7 @@ def get_app():  # noqa: C901
     ## for images, CSS, etc.
     @f_app.get("/{fname:path}.{ext:static}")
     def static_files(fname: str, ext: str):
-        path = ARTIFACTS_PATH if modal.is_local() else "/root/artifacts"
-        static_file_path = Path(path) / f"{fname}.{ext}"
+        static_file_path = artifacts_path / f"{fname}.{ext}"
         if static_file_path.exists():
             return fh.FileResponse(static_file_path)
 
