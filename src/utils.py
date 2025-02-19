@@ -161,18 +161,19 @@ IMAGE = (
     )
     .apt_install("git")
     .pip_install(  # add Python dependencies
-        "ninja==1.11.1.3",
-        "torch==2.5.1",
-        "python-fasthtml==0.6.10",
-        "sqlite-minutils==4.0.3",  # needed for fasthtml
-        "simpleicons==7.21.0",
+        "beautifulsoup4>=4.13.3",
+        "ninja>=1.11.1.3",
+        "plotly>=6.0.0",
+        "python-fasthtml>=0.12.1",
+        "scikit-learn>=1.6.1",
+        "simpleicons>=7.21.0",
+        "tiktoken>=0.9.0",
+        "torch>=2.5.1",
         "requests==2.32.3",
-        "beautifulsoup4==4.13.3",
-        "tiktoken==0.9.0",
     )
-    .add_local_dir(ARTIFACTS_PATH, "/root/artifacts")
-    .add_local_dir(SRC_PATH, "/root/src")
-    .add_local_dir(DIST_PATH, "/root/dist")
+    .add_local_file(PARENT_PATH / "favicon.ico", "/root/favicon.ico")
+    .add_local_dir(SRC_PATH, "/src")
+    .add_local_dir(DIST_PATH, "/dist")
 )
 
 MINUTES = 60  # seconds

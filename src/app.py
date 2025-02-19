@@ -15,12 +15,12 @@ from forward import CausalSelfAttention
 from utils import (
     ALLOW_CONCURRENT_INPUTS,
     APP_NAME,
-    ARTIFACTS_PATH,
     BLOCK_SIZE,
     CONTAINER_IDLE_TIMEOUT,
     GPU_CONFIG,
     IMAGE,
     N_EMBD,
+    PARENT_PATH,
     TIMEOUT,
     VOCAB_SIZE,
     get_device,
@@ -66,7 +66,6 @@ def get_app():  # noqa: C901
         boost=True,
     )
     fh.setup_toasts(f_app)
-    artifacts_path = ARTIFACTS_PATH if modal.is_local() else Path("/root/artifacts")
 
     # components
     global generations
@@ -265,7 +264,8 @@ def get_app():  # noqa: C901
     ## for images, CSS, etc.
     @f_app.get("/{fname:path}.{ext:static}")
     def static_files(fname: str, ext: str):
-        static_file_path = artifacts_path / f"{fname}.{ext}"
+        path = PARENT_PATH if modal.is_local() else Path("/root")
+        static_file_path = path / f"{fname}.{ext}"
         if static_file_path.exists():
             return fh.FileResponse(static_file_path)
 

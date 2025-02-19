@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import modal
 import torch
 import torch.nn as nn
@@ -41,7 +39,7 @@ class CausalSelfAttention(nn.Module):
         if modal.is_local():
             cuda_source = (SRC_PATH / "forward.cu").read_text()
         else:
-            cuda_source = Path("/root/src/forward.cu").read_text()
+            cuda_source = (SRC_PATH / "forward.cu").read_text()
         cuda_source += """
         torch::Tensor forward(torch::Tensor out,
             torch::Tensor inp,
@@ -62,7 +60,7 @@ class CausalSelfAttention(nn.Module):
             functions=["forward"],
             with_cuda=True,
             extra_cuda_cflags=["-O3", "-use_fast_math"],
-            build_directory=DIST_PATH if modal.is_local() else "/root/dist",
+            build_directory=DIST_PATH,
             verbose=True,
         )
 
@@ -101,7 +99,6 @@ def main():
     torch.manual_seed(0)
 
     x = 2 * torch.rand((BS, IN_SEQ_LEN, N_EMBD), device=device) - 1  # [-1, 1]
-    save_path = ARTIFACTS_PATH if modal.is_local() else Path("/root/artifacts")
 
     # test python
     print("=== profiling PyTorch ===")
@@ -114,7 +111,7 @@ def main():
     x_query = x[0]
     y_torch_query = y_torch[0]
     tokens = ["example"] * IN_SEQ_LEN
-    interactive_plot(x_query, y_torch_query, tokens, save_path / "torch.html")
+    interactive_plot(x_query, y_torch_query, tokens, ARTIFACTS_PATH / "torch.html")
 
     # test cu
     print("=== profiling custom CUDA ===")
@@ -124,7 +121,7 @@ def main():
     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
     y_cu_query = y_cu[0]
-    interactive_plot(x_query, y_cu_query, tokens, save_path / "cu.html")
+    interactive_plot(x_query, y_cu_query, tokens, ARTIFACTS_PATH / "cu.html")
 
     # compare torch and custom CUDA
     print(
