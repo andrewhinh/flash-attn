@@ -8,10 +8,10 @@ import torch
 import torch.nn as nn
 from bs4 import BeautifulSoup
 from fasthtml import common as fh
-from pydantic import BaseModel
 from simpleicons.icons import si_github
 
 from forward import CausalSelfAttention
+from mapqueue import Gen, MapQueue
 from utils import (
     ALLOW_CONCURRENT_INPUTS,
     APP_NAME,
@@ -70,18 +70,13 @@ def get_app():  # noqa: C901
 
     # components
     global generations
-    generations = []
-
-    class Gen(BaseModel):
-        id: int
-        query: str
-        data: str | None = None
+    generations = MapQueue()
 
     def gen_view(
         g: Gen,
         session,
     ):
-        if g.data:
+        if g.plotly_plot:
             return fh.Card(
                 fh.P(
                     fh.A(
@@ -98,7 +93,7 @@ def get_app():  # noqa: C901
                 id=f"gen-{g.id}",
                 cls="w-full flex flex-col justify-center items-center gap-4 p-4",
             ), fh.Script(
-                f"var data = {g.data}; Plotly.newPlot('gen-{g.id}-plot', data);",
+                f"var data = {g.plotly_plot}; Plotly.newPlot('gen-{g.id}-plot', data);",
             )
         return fh.Card(
             fh.P(
@@ -252,7 +247,7 @@ def get_app():  # noqa: C901
                 nn.LayerNorm(N_EMBD).to(device)(x)
             )
 
-        g.data = interactive_plot(
+        g.plotly_plot = interactive_plot(
             x[0],  # shape (T, N_EMBD)
             y[0],  # shape (T, N_EMBD)
             [enc.decode([token]) for token in tokens],

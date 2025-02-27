@@ -24,20 +24,27 @@ uv run modal setup
 
 ## usage
 
-Test C++ queue with Python:
+Compile and test queue in C++:
 
 ```bash
-uv run src/queue_test.py
+g++ src/mapqueue.cpp -o dist/mapqueue
+./dist/mapqueue
 ```
 
-Compile and test in C++:
+Test queue with Python:
+
+```bash
+uv run src/mapqueue.py
+```
+
+Compile and test forward pass in C++:
 
 ```bash
 nvcc -O3 -use_fast_math src/forward.cu -o dist/forward -L/usr/lib
 ./dist/forward
 ```
 
-Test attn forward pass in Python:
+Test forward pass in Python:
 
 ```bash
 uv run src/forward.py
