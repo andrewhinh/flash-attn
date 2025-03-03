@@ -1,12 +1,13 @@
 import os
+import urllib.request
 from pathlib import Path
 
 import modal
-import requests
 import tiktoken
 import torch
 import torch.nn as nn
 from bs4 import BeautifulSoup
+from bs4.element import Comment
 from fasthtml import common as fh
 from simpleicons.icons import si_github
 
@@ -211,16 +212,33 @@ def get_app():  # noqa: C901
             cls="flex justify-end items-center p-4 text-lg",
         )
 
+    def tag_visible(element):
+        if element.parent.name in [
+            "style",
+            "script",
+            "head",
+            "title",
+            "meta",
+            "[document]",
+        ]:
+            return False
+        if isinstance(element, Comment):
+            return False
+        return True
+
+    def text_from_html(body):
+        soup = BeautifulSoup(body, "html.parser")
+        texts = soup.findAll(text=True)
+        visible_texts = filter(tag_visible, texts)
+        return " ".join(t.strip() for t in visible_texts)
+
     # threaded fns
     @fh.threaded
     def generate_and_save(g: Gen):
         # given query, return txt from web scrape
-        res = requests.get(
-            f"https://duckduckgo.com/html/?q={g.query}",
-            headers={"User-Agent": "Mozilla/5.0"},
-        )
-        soup = BeautifulSoup(res.text, "html.parser")
-        txt = soup.get_text()
+        url = f"https://duckduckgo.com/html/?q={urllib.parse.quote(g.query)}"
+        html = urllib.request.urlopen(url).read()
+        txt = text_from_html(html)
 
         # get device
         device = get_device()
