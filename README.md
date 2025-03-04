@@ -2,6 +2,8 @@
 
 Flash Attention in Cuda
 
+An implementation of Flash Attention in CUDA alongside a website to visualize its effect on input embeddings.
+
 ## setup
 
 ```bash
