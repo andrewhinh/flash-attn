@@ -4,18 +4,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.cpp_extension import load_inline
 from transformers import GPT2LMHeadModel
-
 from utils import (
     ALLOW_CONCURRENT_INPUTS,
     APP_NAME,
     ARTIFACTS_PATH,
     BLOCK_SIZE,
-    CONTAINER_IDLE_TIMEOUT,
     DIST_PATH,
     GPU_CONFIG,
     IMAGE,
     MODEL_HF,
     N_EMBD,
+    SCALEDOWN_WINDOW,
     SRC_PATH,
     TIMEOUT,
     VOLUME_CONFIG,
@@ -158,9 +157,9 @@ app = modal.App(f"{APP_NAME}-test")
     gpu=GPU_CONFIG,
     volumes=VOLUME_CONFIG,
     timeout=TIMEOUT,
-    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
-    allow_concurrent_inputs=ALLOW_CONCURRENT_INPUTS,
+    scaledown_window=SCALEDOWN_WINDOW,
 )
+@modal.concurrent(max_inputs=ALLOW_CONCURRENT_INPUTS)
 def modal_fn():
     main()
 

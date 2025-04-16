@@ -9,19 +9,18 @@ import torch.nn as nn
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 from fasthtml import common as fh
-from simpleicons.icons import si_github
-
 from forward import CausalSelfAttention
 from mapqueue import Gen, MapQueue
+from simpleicons.icons import si_github
 from utils import (
     ALLOW_CONCURRENT_INPUTS,
     APP_NAME,
     BLOCK_SIZE,
-    CONTAINER_IDLE_TIMEOUT,
     GPU_CONFIG,
     IMAGE,
     N_EMBD,
     PARENT_PATH,
+    SCALEDOWN_WINDOW,
     TIMEOUT,
     VOCAB_SIZE,
     VOLUME_CONFIG,
@@ -357,9 +356,9 @@ app = modal.App(f"{APP_NAME}-frontend")
     gpu=GPU_CONFIG,
     volumes=VOLUME_CONFIG,
     timeout=TIMEOUT,
-    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
-    allow_concurrent_inputs=ALLOW_CONCURRENT_INPUTS,
+    scaledown_window=SCALEDOWN_WINDOW,
 )
+@modal.concurrent(max_inputs=ALLOW_CONCURRENT_INPUTS)
 @modal.asgi_app()
 def modal_get():
     return f_app
